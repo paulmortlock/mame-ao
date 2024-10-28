@@ -157,7 +157,6 @@ namespace Spludlow.MameAO
 			Tools.ConsoleHeading(1, "Initializing");
 
 			Globals.AO = this;
-
 			Globals.Settings = new Settings();
 
 			//
