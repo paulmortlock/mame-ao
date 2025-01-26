@@ -446,7 +446,7 @@ namespace mame_ao.source
 
         public static async Task<string> UploadFile(string itemName, string filePath)
         {
-            string url = $"https://s3.us.archive.org/{Uri.EscapeUriString(itemName)}/{Uri.EscapeUriString(Path.GetFileName(filePath))}";
+            string url = $"https://s3.us.archive.org/{Uri.EscapeDataString(itemName)}/{Uri.EscapeDataString(Path.GetFileName(filePath))}";
             //string filePath = @"C:\path\to\file"; // Replace with your file path
             FileInfo fileInfo = new FileInfo(filePath);
 
@@ -523,7 +523,7 @@ namespace mame_ao.source
 
         public static string DeleteFile(string itemName, string filename)
         {
-            string url = $"https://s3.us.archive.org/{Uri.EscapeUriString(itemName)}/{Uri.EscapeUriString(Path.GetFileName(filename))}";
+            string url = $"https://s3.us.archive.org/{Uri.EscapeDataString(itemName)} / {Uri.EscapeDataString(Path.GetFileName(filename))}";
 
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
             request.Method = "DELETE";
