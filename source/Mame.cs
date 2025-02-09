@@ -1,11 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Collections.Generic;
 
-namespace mame_ao.source
+namespace Spludlow.MameAO
 {
 	public class Mame
 	{
@@ -72,6 +72,9 @@ namespace mame_ao.source
 		}
 		public static void RunMame(string binFilename, string arguments)
 		{
+			if (Globals.MameArguments.Length > 0)
+				arguments += " " + Globals.MameArguments;
+
 			Tools.ConsoleHeading(1, new string[] {
 				"Starting MAME",
 				binFilename,

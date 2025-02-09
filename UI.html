@@ -170,6 +170,11 @@
 					href: '/settings',
 				},
 				{
+					text: 'BitTorrent',
+					title: 'BitTorrent Client Information',
+					href: '/bittorrent',
+				},
+				{
 					text: 'About',
 					title: 'About & System Information',
 					href: '/about',
@@ -434,6 +439,7 @@
 				'/export':			exportFiles,
 				'/genres':			genres,
 				'/settings':		settings,
+				'/bittorrent':		bittorrent,
 				'/about':			about,
 			}[_path];
 
@@ -472,6 +478,224 @@
 			Object.keys(data.available_options).forEach((key) => {
 				document.getElementById(`settings_${key}`).value = data.options[key];
 			});
+		}
+
+		//
+		// BitTorrent
+		//
+		const bittorrent = async () => {
+
+			const canvas = getCanvas();
+
+			const refreshLink = '<p><a href="javascript:window.location.href=window.location.href">Refresh this page to see changes</a></p>';
+
+			let div;
+			let table;
+			let columnDefs;
+
+			if (_info.bit_torrent_enabled !== true) {
+
+				div = document.createElement('div');
+				div.innerHTML = '<h2>BitTorrent Currently Disabled</h2>' +
+					'<p>Click button to enable immediately. You will have to Allow in Windows Firewall when the dialog apears.</p>' +
+					'<button type="submit" onclick="runCommand(\'.bt\'); return false;">Enable BitTorrent</button>' +
+					refreshLink;
+				canvas.appendChild(div);
+				return;
+			}
+
+
+			div = document.createElement('div');
+			div.innerHTML = 'Connecting to DOME-BT ...';
+			canvas.appendChild(div);
+
+			let btInfo;
+			try {
+				btInfo = await fetchJson('/api/info', _info.bit_torrent_url);
+				div.innerHTML = '';
+			}
+			catch (e) {
+				div.innerHTML = `<h2>Error connecting to DOME-BT</h2><p>Ensure the DOME-BT process is running you can use the command ".bt" or click the button.</p><p>Error: ${e.message}</p>` +
+					'<button type="submit" onclick="runCommand(\'.bt\'); return false;">Start BitTorrent</button>' +
+					refreshLink;
+				return;
+			}
+
+			// BitTorrent Client Information
+
+			div = document.createElement('div');
+			div.style = 'width:100%;';
+			div.innerHTML = '<h2>BitTorrent Client Information</h2><table style="width:100%;">' +
+				'<tr><th>Version</th><th>Start Time</th><th>Time Now</th><th>Running for</th></tr>' +
+				`<tr><td>DOME-BT ${btInfo.version}</td><td>${btInfo.start_time}</td><td>${btInfo.time_now}</td><td>${btInfo.run_time_text}</td></tr>` +
+				'</table>';
+			canvas.appendChild(div);
+
+			div = document.createElement('div');
+			div.style = 'width:100%;';
+			div.innerHTML = '<table style="width:100%;">' +
+				'<tr><th>Open Connections</th><th>Download Rate</th><th>Upload Rate</th></tr>' +
+				`<tr><td>${btInfo.open_connections}</td><td>${btInfo.total_download_rate_text}/s</td><td>${btInfo.total_upload_rate_text}/s</td></tr>` +
+				'</table>';
+			canvas.appendChild(div);
+
+			div = document.createElement('div');
+			div.style = 'width:100%;';
+			div.innerHTML = '<table style="width:100%;">' +
+				'<tr><th>Download Total</th><th>Upload Total</th></tr>' +
+				`<tr><td>${btInfo.total_bytes_received_text}</td><td>${btInfo.total_bytes_sent_text}</td></tr>` +
+				'</table>';
+			canvas.appendChild(div);
+
+			// BitTorrents
+
+			div = document.createElement('div');
+			div.style = 'width:100%;';
+			div.innerHTML = '<hr /><h2>BitTorrents</h2>';
+			canvas.appendChild(div);
+
+			columnDefs = [
+				{ heading: 'Name', columnName: 'name' },
+				{ heading: 'State', columnName: 'state' },
+				{ heading: 'File Count', columnName: 'file_count' },
+				{ heading: 'Open Connections', columnName: 'open_connections' },
+				{ heading: 'Peers Available', columnName: 'peers_available' },
+				{ heading: 'Peers Leechs', columnName: 'peers_leechs' },
+				{ heading: 'Peers Seeds', columnName: 'peers_seeds' },
+				{ heading: 'Downloaded', columnName: 'bytes_received_text' },
+				{ heading: 'Uploaded', columnName: 'bytes_sent_text' },
+			];
+
+			table = document.createElement('table');
+			table.style = 'width:100%;';
+
+			buildTable(columnDefs, btInfo.torrents, table, (columnDef, result, resultIndex, row, cell) => {
+
+				const value = result[columnDef.columnName];
+
+				if (value === undefined)
+					return;
+
+				switch (columnDef.columnName) {
+
+					default:
+						cell.innerHTML = value;
+						break;
+				}
+			});
+			canvas.appendChild(table);
+
+			// Port Mappings
+
+			div = document.createElement('div');
+			div.innerHTML = '<hr /><h2>Port Mappings</h2>';
+			canvas.appendChild(div);
+
+			columnDefs = [
+				{ heading: 'Name', columnName: 'name' },
+				{ heading: 'Mappings', columnName: 'mappings' },
+			];
+
+			table = document.createElement('table');
+
+			buildTable(columnDefs, btInfo.port_mappings, table, (columnDef, result, resultIndex, row, cell) => {
+
+				const value = result[columnDef.columnName];
+
+				if (value === undefined)
+					return;
+
+				switch (columnDef.columnName) {
+
+					case 'mappings':
+						cell.innerHTML = value.map(item => `${item.protocol}:${item.public_port}`).join(', ');
+						break;
+
+					default:
+						cell.innerHTML = value;
+						break;
+				}
+			});
+			canvas.appendChild(table);
+
+			// BitTorrent Client Details
+
+			div = document.createElement('div');
+			div.innerHTML = '<hr /><h2>BitTorrent Client Details</h2>';
+			canvas.appendChild(div);
+
+			const infoData = [];
+
+			Object.keys(btInfo).forEach((key) => {
+
+				if (Array.isArray(btInfo[key]) === true)
+					return;
+
+				infoData.push({ key: key, value: btInfo[key] });
+			});
+
+			table = document.createElement('table');
+
+			columnDefs = [
+				{ heading: 'Key', columnName: 'key' },
+				{ heading: 'Value', columnName: 'value' },
+			];
+
+			buildTable(columnDefs, infoData, table, (columnDef, result, resultIndex, row, cell) => {
+
+				const value = result[columnDef.columnName];
+
+				if (value === undefined)
+					return;
+
+				cell.innerHTML = value;
+			});
+
+			canvas.appendChild(table);
+
+			// Magnet Links
+
+			div = document.createElement('div');
+			div.innerHTML = '<hr /><h2>Magnet Links</h2>';
+			canvas.appendChild(div);
+
+			columnDefs = [
+				{ heading: 'Asset Type', columnName: 'type' },
+				{ heading: 'Name / Link', columnName: 'name' },
+				{ heading: 'Version', columnName: 'version' },
+				{ heading: 'Available', columnName: 'torrent_available' },
+			];
+
+			table = document.createElement('table');
+
+			buildTable(columnDefs, btInfo.magnets, table, (columnDef, result, resultIndex, row, cell) => {
+
+				const value = result[columnDef.columnName];
+
+				if (value === undefined)
+					return;
+
+				switch (columnDef.columnName) {
+
+					case 'name':
+						cell.innerHTML = `<a href="${result.magnet_link}" target="_blank">${value}</a>`;
+						break;
+					default:
+						cell.innerHTML = value;
+						break;
+				}
+			});
+			canvas.appendChild(table);
+
+			// Disable
+
+			div = document.createElement('div');
+			div.innerHTML = '<hr /><h2>Disable BitTorrent</h2>' +
+				'<p>Click button to disable & remove BitTorrent.</p>' +
+				'<p>If you want to use archive.org for downloading assets use the command ".creds" to enter your credentials if you have not already.</p>' +
+				'<button type="submit" onclick="runCommand(\'.btx\'); return false;">Disable BitTorrent</button>' +
+				refreshLink;
+			canvas.appendChild(div);
 		}
 
 		//
@@ -663,13 +887,12 @@
 
 			html += '<p>Validate the ROM Hash Store, each file will be SHA1 hashed and compared to the filename.</p>';
 			html += '<button type="submit" onclick="runCommand(\'.valid rom\'); return false;">Validate ROM</button><br />';
+
 			html += '<hr />';
-			html += '<p>Validate the DISK Hash Store, each file will have the SHA1 checked with chdman.exe and compared to the filename.</p>';
-			html += '<button type="submit" onclick="runCommand(\'.valid disk\'); return false;">Validate DISK</button><br />';
-			html += '<hr />';
+
 			html += '<p>Validate the DISK Hash Store, each file will have the SHA1 verified with chdman.exe and compared to the filename.</p>';
 			html += '<p>WARNING: This can take a while, each CHD will have its SHA1 calculated to verify it is correct.</p>'
-			html += '<button type="submit" onclick="runCommand(\'.valid diskv\'); return false;">Validate DISK (CHD Verify)</button><br />';
+			html += '<button type="submit" onclick="runCommand(\'.valid disk\'); return false;">Validate DISK</button><br />';
 
 			const div = document.createElement('div');
 			div.innerHTML = html;
@@ -1227,7 +1450,7 @@
 
 		const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-		const fetchJson = async url => (await fetch(`${_baseUrl}${url}`)).json();
+		const fetchJson = async (url, base = _baseUrl) => (await fetch(`${base}${url}`)).json();
 
 		const getCanvas = () => {
 			const page = document.getElementById('canvas');

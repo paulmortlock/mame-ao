@@ -1,11 +1,11 @@
-﻿using Microsoft.Data.SqlClient;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Data;
-using System.Data.SQLite;
 using System.IO;
+using System.Data;
 
-namespace mame_ao.source
+using System.Data.SQLite;
+
+namespace Spludlow.MameAO
 {
 	public class Genre
 	{
@@ -272,8 +272,8 @@ namespace mame_ao.source
 
 			using (SQLiteCommand command = new SQLiteCommand("UPDATE machine SET genre_id = @genre_id WHERE machine_id = @machine_id", Globals.Database._MachineConnection))
 			{
-				command.Parameters.Add("@genre_id", (DbType)(SqlDbType)DbType.Int64);
-				command.Parameters.Add("@machine_id", (DbType)(SqlDbType)DbType.Int64);
+				command.Parameters.Add("@genre_id", DbType.Int64);
+				command.Parameters.Add("@machine_id", DbType.Int64);
 
 				Globals.Database._MachineConnection.Open();
 

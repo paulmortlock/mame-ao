@@ -1,5 +1,5 @@
 # mame-ao
-Easiest way to use MAME. Automatic download and setup of all files from github.com & archive.org on the fly.
+Easiest way to use MAME. Automatic download and setup of all files from GitHub, BitTorrent, and archive.org on the fly.
 
 ![MAME-AO UI](https://raw.githubusercontent.com/sam-ludlow/mame-ao/main/images/mame-ao-ui.png)
 
@@ -9,23 +9,39 @@ Easiest way to use MAME. Automatic download and setup of all files from github.c
 - put ZIP in empty directory and extract
 - double click "mame-ao.exe"
 - wait for the MAME-AO to start
+- perform option 1 OR 2 below
 - click image to start machine
 
 TIP: Run command `.upany` aftear initial setup, this will stop the Microsoft Defender notice.
 
 NOTE: First time it has to extract MAME's data, this will take a moment, next time it will start quickly, although version bumps in MAME or MAME-AO will trigger another data initialization.
 
-## Enter your Archive.org credentials
+## Enter your Archive.org credentials (Option 1)
+If you intend on using BitTorrent you can skip this step, press `ENTER` twice. You can enter your credentials later with the command `.creds`.
 
-You will need an archive.org account to use MAME-AO. You should create one here https://archive.org/account/signup
+You will need an archive.org account to use MAME-AO if not using BitTorrent. You should create one here https://archive.org/account/signup
 
 ![MAME-AO UI](https://raw.githubusercontent.com/sam-ludlow/mame-ao/main/images/mame-ao-archive.org-credentials.png)
+
+## Enable BitTorrent (Option 2)
+You can enable BitTorrent in the UI or use the command `.bt`. Once enabled BitTorrent will start automatically next time.
+
+BitTorrent is recomended as it has the vary latest assets.
+
+![MAME-AO Enable BitTorrent](https://raw.githubusercontent.com/sam-ludlow/mame-ao/main/images/mame-ao-enable-bit-torrent.png)
+
+Bit Torrent is handled by a seperate process the first time in runs you will get a Windows Firewall message, you need to allow the `dome-bt.exe` process. More info here https://github.com/sam-ludlow/dome-bt
+
+To remove BitTorrent use the UI or command `.btx` then use the command `.creds` to enter Archive.org credentials if you have not already.
+
+![MAME-AO Disable BitTorrent](https://raw.githubusercontent.com/sam-ludlow/mame-ao/main/images/mame-ao-disable-bit-torrent.png)
 
 ## System requirements
 - Windows with .net framework 4.8
 - 32 bit / 64 bit (application is 32 bit keeps RAM usage down)
 - 2 Gb RAM free
 - 2 Gb DISK free (absolute minimum)
+- CPU with x86-64-v2 functionality (MAME >= 0274)
 
 ## Reporting issues
 https://github.com/sam-ludlow/mame-ao/issues
@@ -50,6 +66,8 @@ For more detail see the official docs. https://docs.mamedev.org/usingmame/usingm
 NOTE: Machines that emulate keyboards will take over, use `Scroll Lock` to toggle between standard MAME controls and full keyboard.
 
 You should use a joystick but you will need a few keyboard commands. Full keyboard docs here https://docs.mamedev.org/usingmame/defaultkeys.html
+
+![MAME-AO Real Man's Joystick](https://raw.githubusercontent.com/sam-ludlow/mame-ao/main/images/mame-ao-joystick.png)
 
 - Player 1 Coin Up: `5`
 - Player 1 Start: `1`
@@ -79,6 +97,8 @@ NOTE: When saving state you have to then press another key or button to name the
 
 ### MAME UI
 When starting MAME without a machine you will get the MAME UI.
+
+![MAME-AO UI](https://raw.githubusercontent.com/sam-ludlow/mame-ao/main/images/mame-ui.png)
 
 Use the mouse or `Cursor keys` and `Enter` to navigate.
 
@@ -114,6 +134,10 @@ There are also commands available they all start with a dot `.`
 - `.r` - Reload `UI.html` usfull when developing the UI.
 - `.dbm` - Machine database SQL query
 - `.dbs` - Software database SQL query
+- `.creds` - Enter archive.org credentials, If you press `ENTER` twice your auth cookie will be deleted.
+- `.bt` - Enable the bit torrent client
+- `.btx` - Remove the bit torrent client
+- `.test` - Perform asset place tests
 
 ## Saved State and previous MAME versions
 Saved state somtimes does not work between MAME versions. If you have started something with saved state you may as well use the same MAME version.
@@ -175,8 +199,7 @@ Machine DISKs that exist in a parent machine will not be exported, as the file w
 You can check the hash store is in good order using the following commands:
 
 - `.valid rom` - Validate the ROM Hash Store, each file will be SHA1 hashed and compared to the filename.
-- `.valid disk` - Validate the DISK Hash Store, each file will have the SHA1 checked with chdman.exe and compared to the filename.
-- `.valid diskv` - Validate the DISK Hash Store, each file will have the SHA1 verified with chdman.exe and compared to the filename. WARNING: This can take a while, each CHD will have its SHA1 calculated to verify it is correct.
+- `.valid disk` - Validate the DISK Hash Store, each file will have the SHA1 verified with chdman.exe and compared to the filename. WARNING: This can take a while, each CHD will have its SHA1 calculated to verify it is correct.
 
 If any issues are found a report will be produced, if all good then no report. Problem files in the report should be manually deleted.
 
@@ -222,6 +245,26 @@ Options available on the UI settings page
 - `Yes` Send data
 - `Yes Verbose` Send data and show payload in console.
 - `No` Do not send data.
+
+## Configuration
+You can set certain advanced configuration options in the file `_config.txt`, each line should be `KEY	VALUE` (TAB separator).
+
+- `StorePathRom` - Override default ROM Store directory
+- `StorePathDisk` - Override default DISK Store directory
+- `BitTorrentPath` - Override default Bit Torrent directory
+- `MameArguments` - Pass arguments to MAME e.g. `-window`
+- `MameVersion` - Run MAME-AO on a fixed MAME version. If you have an old CPU you are stuck with `0273`
+
+## Archive.org Upload
+MAME-AO can be used to upload files to archive.org items, for people serious about software preservation.
+
+Obtain your API Key from here https://archive.org/account/s3.php
+
+Create a text file in the MAME-AO root directory `_api-auth.txt` and put in your API key details in this format:
+
+`LOW <Your_S3_access_key>:<Your_S3_secret_key>`
+
+Use the command `.upload`
 
 ## MAME Data Operations
 MAME-AO has the capability to perform various MAME Data operations by passing command line options when starting the program, it will exit immediately when finished.
@@ -291,9 +334,9 @@ https://raw.githubusercontent.com/AntoPISA/MAME_SupportFiles/main/catver.ini/cat
 https://raw.githubusercontent.com/AntoPISA/MAME_Dats/main/MAME_dat/MAME_Samples.dat
 
 #### Artwork XML
-- https://raw.githubusercontent.com/AntoPISA/MAME_Dats/main/pS_Resources/pS_Artwork_Official.dat
-- https://raw.githubusercontent.com/AntoPISA/MAME_Dats/main/pS_Resources/pS_Artwork_Unofficial_Alternate.dat
-- https://raw.githubusercontent.com/AntoPISA/MAME_Dats/main/pS_Resources/pS_Artwork_WideScreen.dat
+https://raw.githubusercontent.com/AntoPISA/MAME_Dats/refs/heads/main/Resources/pS_Artwork_Official.dat
+https://raw.githubusercontent.com/AntoPISA/MAME_Dats/refs/heads/main/Resources/pS_Artwork_Unofficial_Alternate.dat
+https://raw.githubusercontent.com/AntoPISA/MAME_Dats/refs/heads/main/Resources/pS_Artwork_WideScreen.dat
 
 See information on the GitHub Repos in use by MAME-AO by going to the About page. http://localhost:12380/about
 

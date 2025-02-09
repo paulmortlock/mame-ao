@@ -2,7 +2,7 @@
 using System.IO;
 using System.Text;
 
-namespace mame_ao.source
+namespace Spludlow.MameAO
 {
 	public class BadSources
 	{
@@ -15,11 +15,11 @@ namespace mame_ao.source
 				File.WriteAllText(_DataFilename, "", Encoding.UTF8);
 		}
 
-		public bool AlreadyDownloaded(ArchiveOrgFile sourceFileInfo)
+		public bool AlreadyDownloaded(string sha1)
 		{
 			string data = File.ReadAllText(_DataFilename, Encoding.UTF8);
 
-			return data.IndexOf(sourceFileInfo.sha1) != -1;
+			return data.IndexOf(sha1) != -1;
 		}
 
 		public void ReportSourceFile(ArchiveOrgFile sourceFileInfo, string extectedSHA1, string actualSHA1)

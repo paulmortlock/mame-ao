@@ -5,7 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Xml.Linq;
 
-namespace mame_ao.source
+namespace Spludlow.MameAO
 {
 	public class ArtworkData
 	{
@@ -23,9 +23,9 @@ namespace mame_ao.source
 	{
 		public Dictionary<ArtworkTypes, string> ArchivePaths = new Dictionary<ArtworkTypes, string>()
 		{
-			{ ArtworkTypes.Artworks,			"/main/pS_Resources/pS_Artwork_Official.dat" },
-			{ ArtworkTypes.ArtworksAlt,         "/main/pS_Resources/pS_Artwork_Unofficial_Alternate.dat" },
-			{ ArtworkTypes.ArtworksWideScreen,  "/main/pS_Resources/pS_Artwork_WideScreen.dat" },
+			{ ArtworkTypes.Artworks,            "/refs/heads/main/Resources/pS_Artwork_Official.dat" },
+			{ ArtworkTypes.ArtworksAlt,         "/refs/heads/main/Resources/pS_Artwork_Unofficial_Alternate.dat" },
+			{ ArtworkTypes.ArtworksWideScreen,  "/refs/heads/main/Resources/pS_Artwork_WideScreen.dat" },
 		};
 
 		public Dictionary<ArtworkTypes, ArtworkData> ArtworkDatas = new Dictionary<ArtworkTypes, ArtworkData>();

@@ -1,15 +1,12 @@
-﻿using Spectre.Console;
-using System;
-using System.Threading.Tasks;
-
-namespace mame_ao.source
+﻿using System;
+using System.Reflection;
+[assembly: AssemblyVersion("1.109.0.9")]
+namespace Spludlow.MameAO
 {
-    public static class Program
-	{
-		public static async Task<int> Main(string[] args)
+    public class Program
+    {
+        public static int Main(string[] args)
         {
-            HellowWorld();
-            Globals.Arguments.Clear();
             foreach (string arg in args)
             {
                 int index = arg.IndexOf('=');
@@ -22,31 +19,25 @@ namespace mame_ao.source
             if (Globals.Arguments.ContainsKey("DIRECTORY") == false)
                 Globals.Arguments.Add("DIRECTORY", Environment.CurrentDirectory);
 
-            //MameAOProcessor proc = new();
+            MameAOProcessor proc = new MameAOProcessor();
 
             if (Globals.Arguments.ContainsKey("OPERATION") == true)
-                return await Operations.ProcessOperationAsync(Globals.Arguments);
+                return Operations.ProcessOperation(Globals.Arguments);
 
             if (Globals.Arguments.ContainsKey("UPDATE") == true)
             {
-                SelfUpdate.UpdateAsync(Int32.Parse(Globals.Arguments["UPDATE"]));
+                SelfUpdate.Update(Int32.Parse(Globals.Arguments["UPDATE"]));
                 return 0;
             }
 
-            //var proc = ;
-            //Application.Init();
-            //Application.Run(new MameAOProcessor());
-            //Application.Run(new MyView());
-            //proc.RunAsync().RunSynchronously();
+            proc.Run();
+
             return 0;
         }
 
-        public static void HellowWorld()
-        {
-            //AnsiConsoleSettings settings = new AnsiConsoleSettings();
-            //System.IO.TextWriter t = settings.Out.Writer;
-            AnsiConsole.Markup("[underline red]Hello[/] World!");
-            //return t;
-        }
+        //public static void Main()
+        //{
+        //    throw new NotImplementedException();
+        //}
     }
 }

@@ -4,12 +4,12 @@ using System.Data;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Net;
 using System.Reflection;
 using System.Text;
 using System.Xml.Linq;
+using System.Net;
 
-namespace mame_ao.source
+namespace Spludlow.MameAO
 {
 	public class Reports
 	{
@@ -104,6 +104,13 @@ namespace mame_ao.source
 				Code = "AVS",
 				Text = "Software",
 				Decription = "List Software that is available to run.",
+			},
+			new ReportType(){
+				Key = "summary",
+				Group = "available",
+				Code = "AVSUM",
+				Text = "Summary",
+				Decription = "Summary of all store completeness.",
 			},
 			new ReportType(){
 				Key = "software-disk-list",
@@ -1002,6 +1009,74 @@ namespace mame_ao.source
 
 			this.SaveHtmlReport(dataSet, "Avaliable Software ROM and DISK");
 
+		}
+
+		public void Report_AVSUM()
+		{
+			string[] names = new string[] {
+				"Machine Rom",
+				"Machine Disk",
+				"Software Rom",
+				"Software Disk",
+				"Artworks",
+				"Artworks Alt",
+				"Artworks Wide Screen",
+				"Samples",
+			};
+
+			HashStore[] hashStores = new HashStore[] {
+				Globals.RomHashStore,
+				Globals.DiskHashStore,
+				Globals.RomHashStore,
+				Globals.DiskHashStore,
+				Globals.RomHashStore,
+				Globals.RomHashStore,
+				Globals.RomHashStore,
+				Globals.RomHashStore,
+			};
+
+			foreach (ArtworkTypes type in new ArtworkTypes[] { ArtworkTypes.Artworks, ArtworkTypes.ArtworksAlt, ArtworkTypes.ArtworksWideScreen })
+				Globals.Artwork.Initialize(type);
+
+			Globals.Samples.Initialize();
+
+			HashSet<string>[] databaseHashes = new HashSet<string>[] {
+				new HashSet<string>(Database.ExecuteFill(Globals.Database._MachineConnection, "SELECT [sha1] FROM [rom] WHERE [sha1] IS NOT NULL").Rows.Cast<DataRow>().Select(row => (string)row["sha1"])),
+				new HashSet<string>(Database.ExecuteFill(Globals.Database._MachineConnection, "SELECT [sha1] FROM [disk] WHERE [sha1] IS NOT NULL").Rows.Cast<DataRow>().Select(row => (string)row["sha1"])),
+				new HashSet<string>(Database.ExecuteFill(Globals.Database._SoftwareConnection, "SELECT [sha1] FROM [rom] WHERE [sha1] IS NOT NULL").Rows.Cast<DataRow>().Select(row => (string)row["sha1"])),
+				new HashSet<string>(Database.ExecuteFill(Globals.Database._SoftwareConnection, "SELECT [sha1] FROM [disk] WHERE [sha1] IS NOT NULL").Rows.Cast<DataRow>().Select(row => (string)row["sha1"])),
+				new HashSet<string>(Globals.Artwork.ArtworkDatas[ArtworkTypes.Artworks].DataSet.Tables["rom"].Rows.Cast<DataRow>().Where(row => row.IsNull("sha1") == false).Select(row => (string)row["sha1"])),
+				new HashSet<string>(Globals.Artwork.ArtworkDatas[ArtworkTypes.ArtworksAlt].DataSet.Tables["rom"].Rows.Cast<DataRow>().Where(row => row.IsNull("sha1") == false).Select(row => (string)row["sha1"])),
+				new HashSet<string>(Globals.Artwork.ArtworkDatas[ArtworkTypes.ArtworksWideScreen].DataSet.Tables["rom"].Rows.Cast<DataRow>().Where(row => row.IsNull("sha1") == false).Select(row => (string)row["sha1"])),
+				new HashSet<string>(Globals.Samples.DataSet.Tables["rom"].Rows.Cast<DataRow>().Where(row => row.IsNull("sha1") == false).Select(row => (string)row["sha1"])),
+			};
+
+			DataTable table = Tools.MakeDataTable("Summary",
+				"Asset Type	Total	Have	Missing	Complete",
+				"String		Int32	Int32	Int32	String"
+			);
+
+			for (int index = 0; index < names.Length; ++index)
+			{
+				string name = names[index];
+				HashSet<string> databaseHash = databaseHashes[index];
+				HashStore hashStore = hashStores[index];
+
+				HashSet<string> missingHashes = new HashSet<string>();
+				foreach (string sha1 in databaseHash)
+				{
+					if (hashStore.Exists(sha1) == false)
+						missingHashes.Add(sha1);
+				}
+
+				int have = databaseHash.Count - missingHashes.Count;
+
+				decimal complete = Math.Round((100.0M / databaseHash.Count) * (databaseHash.Count - missingHashes.Count), 3);
+
+				table.Rows.Add(name, databaseHash.Count, have, missingHashes.Count, $"{complete} %");
+			}
+
+			SaveHtmlReport(table, "Summary of all store completeness");
 		}
 
 		public void Report_AVSDL()

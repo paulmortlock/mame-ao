@@ -1,16 +1,15 @@
 ﻿using System;
 using System.Diagnostics;
-using System.IO;
 using System.IO.Compression;
+using System.IO;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 
-namespace mame_ao.source
+namespace Spludlow.MameAO
 {
 	public class SelfUpdate
 	{
-		public static async Task UpdateAsync(int startingPid)
+		public static void Update(int startingPid)
 		{
 			string updateDirectory = Path.Combine(Globals.TempDirectory, "UPDATE");
 
@@ -30,7 +29,7 @@ namespace mame_ao.source
 				string archiveUrl = repo.Assets[repo.Assets.First().Key];
 				string archiveFilename = Path.Combine(Globals.RootDirectory, $"mame-ao-{repo.tag_name}.zip");
 
-				await Tools.DownloadAsync(archiveUrl, archiveFilename);
+				Tools.Download(archiveUrl, archiveFilename);
 
 				if (Directory.Exists(updateDirectory) == true)
 				{

@@ -3,16 +3,28 @@ using System.Collections.Generic;
 using System.Data;
 using System.IO;
 using System.IO.Compression;
-using System.Threading.Tasks;
 
-namespace mame_ao.source
+namespace Spludlow.MameAO
 {
-	public static class Place
+	public class Place
 	{
-		public static async Task PlaceAssetsAsync(string machineName, string softwareName)
+		public static void PlaceAssets(string machineName, string softwareName)
 		{
 			Tools.ConsoleHeading(1, "Asset Acquisition");
 			Console.WriteLine();
+
+			if (Globals.AuthCookie == null && Globals.BitTorrentAvailable == false)
+			{
+				Tools.ConsoleHeading(1, new string[] {
+					"IMPORTANT - You must do either of the following to dowdload assets",
+					"",
+					"1) : Archive.org - Enter the command: .creds",
+					"2) : BitTorrent  - Enter the command: .bt   ",
+					""
+				});
+
+				return;
+			}
 
 			DataRow machine = Globals.Database.GetMachine(machineName) ?? throw new ApplicationException($"Machine not found: {machineName}");
 
@@ -21,7 +33,7 @@ namespace mame_ao.source
 			int missingCount = 0;
 
 			missingCount += PlaceMachineRoms(machineName);
-			missingCount += await PlaceMachineDisksAsync(machineName).ConfigureAwait(false);
+			missingCount += PlaceMachineDisks(machineName);
 
 			if (softwareName != "")
 			{
@@ -81,7 +93,7 @@ namespace mame_ao.source
 							if ((string)findSoftware["name"] == requiredSoftwareName)
 							{
 								missingCount += PlaceSoftwareRoms(softwarelist, findSoftware);
-								missingCount += await PlaceSoftwareDisksAsync(softwarelist, findSoftware);
+								missingCount += PlaceSoftwareDisks(softwarelist, findSoftware);
 
 								++softwareFound;
 							}
@@ -130,8 +142,6 @@ namespace mame_ao.source
 		{
 			int missingCount = 0;
 
-			ArchiveOrgItem item = Globals.ArchiveOrgItems[ItemType.MachineRom][0];
-
 			for (int pass = 0; pass < 2; ++pass)
 			{
 				foreach (string machineName in FindAllMachines(mainMachineName))
@@ -146,9 +156,19 @@ namespace mame_ao.source
 					{
 						if (AssetsRequired(Globals.RomHashStore, assetRows, info) == true)
 						{
-							ArchiveOrgFile file = item.GetFile(machineName);
-							if (file != null)
-								DownloadImportFiles(item.DownloadLink(file), file.size, info);
+							if (Globals.BitTorrentAvailable == false)
+							{
+								ArchiveOrgItem item = Globals.ArchiveOrgItems[ItemType.MachineRom][0];
+								ArchiveOrgFile file = item.GetFile(machineName);
+								if (file != null)
+									DownloadImportFiles(item.DownloadLink(file), file.size, info);
+							}
+							else
+							{
+								var btFile = BitTorrent.MachineRom(machineName);
+								if (btFile != null)
+									DownloadImportFiles(btFile.Filename, btFile.Length, info);
+							}
 						}
 					}
 					else
@@ -163,10 +183,8 @@ namespace mame_ao.source
 			return missingCount;
 		}
 
-		private static async Task<int> PlaceMachineDisksAsync(string machineName)
+		private static int PlaceMachineDisks(string machineName)
 		{
-			ArchiveOrgItem item = Globals.ArchiveOrgItems[ItemType.MachineDisk][0];
-
 			DataRow machineRow = Globals.Database.GetMachine(machineName);
 
 			DataRow[] assetRows = Globals.Database.GetMachineDisks(machineRow);
@@ -182,10 +200,25 @@ namespace mame_ao.source
 
 					string sha1 = (string)row["sha1"];
 
-					ArchiveOrgFile file = MachineDiskAvailableSourceFile(machineRow, row, item);
+					foreach (string[] key in MachineDiskAvailableKeys(machineRow, row))
+					{
+						string availableMachineName = key[0];
+						string availableDiskName = key[1];
 
-					if (file != null)
-                        await DownloadImportDiskAsync(item, file, sha1, info);
+						if (Globals.BitTorrentAvailable == false)
+						{
+							ArchiveOrgItem item = Globals.ArchiveOrgItems[ItemType.MachineDisk][0];
+							ArchiveOrgFile file = item.GetFile($"{availableMachineName}/{availableDiskName}");
+							if (file != null)
+								DownloadImportDisk(item.DownloadLink(file), file.size, sha1, info);
+						}
+						else
+						{
+							var btFile = BitTorrent.MachineDisk(availableMachineName, availableDiskName);
+							if (btFile != null)
+								DownloadImportDisk(btFile.Filename, btFile.Length, sha1, info);
+						}
+					}
 				}
 			}
 
@@ -194,17 +227,108 @@ namespace mame_ao.source
 			return PlaceAssetFiles(assetRows, Globals.DiskHashStore, targetDirectory, ".chd", info);
 		}
 
+		public static string[][] MachineDiskAvailableKeys(DataRow machineRow, DataRow diskRow)
+		{
+			string machineName = Tools.DataRowValue(machineRow, "name");
+
+			string diskName = Tools.DataRowValue(diskRow, "name");
+			string merge = Tools.DataRowValue(diskRow, "merge");
+
+			List<string> machineNames = new List<string>(new string[] { machineName });
+
+			DataRow currentRow = machineRow;
+			while (currentRow.IsNull("romof") == false)
+			{
+				string romof = (string)currentRow["romof"];
+				machineNames.Add(romof);
+
+				currentRow = Globals.Database.GetMachine(romof);
+			}
+
+			string availableDiskName = diskName;
+
+			if (merge != null)
+				availableDiskName = merge;
+
+			List<string[]> keys = new List<string[]>();
+
+			foreach (string availableMachineName in machineNames)
+				keys.Add(new string[] { availableMachineName, availableDiskName });
+
+			return keys.ToArray();
+		}
+
+		private static bool DownloadImportDisk(string urlOrFilename, long length, string expectedSha1, string[] info)
+		{
+			//if (Globals.BadSources.AlreadyDownloaded(expectedSha1) == true)
+			//{
+			//	Console.WriteLine($"!!! Already Downloaded before and it didn't work (bad in source) chd-sha1:{expectedSha1}");
+			//	return false;
+			//}
+
+			string tempFilename = Path.Combine(Globals.TempDirectory, DateTime.Now.ToString("s").Replace(":", "-") + "_" + expectedSha1 + ".chd");
+
+			lock (Globals.WorkerTaskInfo)
+			{
+				Globals.WorkerTaskInfo.BytesTotal = length;
+			}
+
+			DateTime startTime = DateTime.Now;
+			long size;
+
+			if (urlOrFilename.StartsWith("http") == true)
+			{
+				Console.Write($"Downloading size:{Tools.DataSize(length)} url:{urlOrFilename} ...");
+				size = Tools.Download(urlOrFilename, tempFilename, length);
+				Console.WriteLine("...done");
+			}
+			else
+			{
+				File.Copy(urlOrFilename, tempFilename);
+
+				FileInfo fileInfo = new FileInfo(tempFilename);
+				size = fileInfo.Length;
+			}
+
+			TimeSpan took = DateTime.Now - startTime;
+			if (took.TotalSeconds < 1)
+				took = TimeSpan.FromSeconds(1);
+
+			DateTime when = DateTime.Now;
+
+			Globals.WorkerTaskReport.Tables["Download"].Rows.Add(when, info[0], info[1], info[2], urlOrFilename, size, (long)took.TotalSeconds);
+
+			decimal mbPerSecond = (size / (decimal)took.TotalSeconds) / (1024.0M * 1024.0M);
+			Console.WriteLine($"Download rate: {Math.Round(took.TotalSeconds, 3)}s = {Math.Round(mbPerSecond, 3)} MiB/s");
+
+			if (length != size)
+				Console.WriteLine($"!!! Unexpected downloaded file size expect:{length} actual:{size}");
+
+			Console.Write($"CHD Verify {tempFilename} ...");
+			string sha1 = Globals.DiskHashStore.Hash(tempFilename);
+			Console.WriteLine("...done");
+
+			if (sha1 != expectedSha1)
+			{
+				Console.WriteLine($"!!! Unexpected downloaded CHD SHA1. It's wrong in the source and will not work. expect:{expectedSha1} actual:{sha1}");
+				//Globals.BadSources.ReportSourceFile(file, expectedSha1, sha1);
+			}
+
+			bool required = Globals.Database._AllSHA1s.Contains(sha1);
+			bool imported = false;
+
+			if (required == true)
+				imported = Globals.DiskHashStore.Add(tempFilename, true, sha1);
+
+			Globals.WorkerTaskReport.Tables["Import"].Rows.Add(when, info[0], info[1], info[2], sha1, required, imported, Path.GetFileName(tempFilename));
+
+			return true;
+		}
+
 		private static int PlaceSoftwareRoms(DataRow softwareList, DataRow software)
 		{
-			ArchiveOrgItem item = Globals.ArchiveOrgItems[ItemType.SoftwareRom][0];
-
 			string softwareListName = (string)softwareList["name"];
 			string softwareName = (string)software["name"];
-
-			ArchiveOrgFile file = item.GetFile(softwareListName);
-
-			if (file == null)
-				return 0;
 
 			DataRow[] assetRows = Globals.Database.GetSoftwareRoms(software);
 
@@ -217,20 +341,34 @@ namespace mame_ao.source
 				if (parentSoftwareName != null)
 					requiredSoftwareName = parentSoftwareName;
 
-				string listEnc = Uri.EscapeDataString(softwareListName);
-				string softEnc = Uri.EscapeDataString(requiredSoftwareName);
+				if (Globals.BitTorrentAvailable == false)
+				{
+					ArchiveOrgItem item = Globals.ArchiveOrgItems[ItemType.SoftwareRom][0];
+					ArchiveOrgFile file = item.GetFile(softwareListName);
+					if (file == null)
+						return 0;
 
-				string url = item.DownloadLink(file) + "/@LIST@%2f@SOFTWARE@.zip";
-				url = url.Replace("@LIST@", listEnc);
-				url = url.Replace("@SOFTWARE@", softEnc);
+					string listEnc = Uri.EscapeDataString(softwareListName);
+					string softEnc = Uri.EscapeDataString(requiredSoftwareName);
 
-				Dictionary<string, long> softwareSizes = item.GetZipContentsSizes(file, softwareListName.Length + 1, 4);
+					string url = item.DownloadLink(file) + "/@LIST@%2f@SOFTWARE@.zip";
+					url = url.Replace("@LIST@", listEnc);
+					url = url.Replace("@SOFTWARE@", softEnc);
 
-				if (softwareSizes == null)
-					throw new ApplicationException($"Can't get software sizes for Software ROM in list: {softwareListName}");
+					Dictionary<string, long> softwareSizes = item.GetZipContentsSizes(file, softwareListName.Length + 1, 4);
 
-				if (softwareSizes.ContainsKey(requiredSoftwareName) == true)
-					DownloadImportFiles(url, softwareSizes[requiredSoftwareName], info);
+					if (softwareSizes == null)
+						throw new ApplicationException($"Can't get software sizes for Software ROM in list: {softwareListName}");
+
+					if (softwareSizes.ContainsKey(requiredSoftwareName) == true)
+						DownloadImportFiles(url, softwareSizes[requiredSoftwareName], info);
+				}
+				else
+				{
+					var btFile = BitTorrent.SoftwareRom(softwareListName, requiredSoftwareName);
+					if (btFile != null)
+						DownloadImportFiles(btFile.Filename, btFile.Length, info);
+				}
 			}
 
 			string targetDirectory = Path.Combine(Globals.MameDirectory, "roms", softwareListName, softwareName);
@@ -238,12 +376,10 @@ namespace mame_ao.source
 			return PlaceAssetFiles(assetRows, Globals.RomHashStore, targetDirectory, null, info);
 		}
 
-		private static async Task<int> PlaceSoftwareDisksAsync(DataRow softwareList, DataRow software)
+		private static int PlaceSoftwareDisks(DataRow softwareList, DataRow software)
 		{
 			string softwareListName = (string)softwareList["name"];
 			string softwareName = (string)software["name"];
-
-			ArchiveOrgItem[] items = ArchiveOrgItem.GetItems(ItemType.SoftwareDisk, softwareListName);
 
 			DataRow[] assetRows = Globals.Database.GetSoftwareDisks(software);
 
@@ -262,24 +398,33 @@ namespace mame_ao.source
 					string name = (string)row["name"];
 					string sha1 = (string)row["sha1"];
 
-					bool found = false;
-
-					foreach (ArchiveOrgItem item in items)
+					foreach (string downloadSoftwareName in downloadSoftwareNames)
 					{
-						if (found == true)
-							break;
-
-						foreach (string downloadSoftwareName in downloadSoftwareNames)
+						if (Globals.BitTorrentAvailable == false)
 						{
-							string key = $"{softwareListName}/{downloadSoftwareName}/{name}";
+							bool found = false;
 
-							if (item.Tag != null && item.Tag != "*")
-								key = $"{downloadSoftwareName}/{name}";
+							ArchiveOrgItem[] items = ArchiveOrgItem.GetItems(ItemType.SoftwareDisk, softwareListName);
+							foreach (ArchiveOrgItem item in items)
+							{
+								if (found == true)
+									break;
 
-							ArchiveOrgFile file = item.GetFile(key);
+								string key = $"{softwareListName}/{downloadSoftwareName}/{name}";
 
-							if (file != null)
-								found = await DownloadImportDiskAsync(item, file, sha1, info);
+								if (item.Tag != null && item.Tag != "*")
+									key = $"{downloadSoftwareName}/{name}";
+
+								ArchiveOrgFile file = item.GetFile(key);
+								if (file != null)
+									found = DownloadImportDisk(item.DownloadLink(file), file.size, sha1, info);
+							}
+						}
+						else
+						{
+							var btFile = BitTorrent.SoftwareDisk(softwareListName, downloadSoftwareName, name);
+							if (btFile != null)
+								DownloadImportDisk(btFile.Filename, btFile.Length, sha1, info);
 						}
 					}
 				}
@@ -353,7 +498,7 @@ namespace mame_ao.source
 			return downloadRequired;
 		}
 
-		public static async void DownloadImportFiles(string url, long expectedSize, string[] info)
+		public static void DownloadImportFiles(string urlOrFilename, long expectedSize, string[] info)
 		{
 			using (TempDirectory tempDir = new TempDirectory())
 			{
@@ -361,20 +506,35 @@ namespace mame_ao.source
 				string extractDirectory = Path.Combine(tempDir.Path, "OUT");
 				Directory.CreateDirectory(extractDirectory);
 
-				Console.Write($"Downloading size:{Tools.DataSize(expectedSize)} url:{url} ...");
 				DateTime startTime = DateTime.Now;
-				long size = await Tools.Download(url, archiveFilename, expectedSize);
+				long size;
+
+				if (urlOrFilename.StartsWith("http") == true)
+				{
+					Console.Write($"Downloading size:{Tools.DataSize(expectedSize)} url:{urlOrFilename} ...");
+					size = Tools.Download(urlOrFilename, archiveFilename, expectedSize);
+					Console.WriteLine("...done");
+				}
+				else
+				{
+					File.Copy(urlOrFilename, archiveFilename);
+
+					FileInfo fileInfo = new FileInfo(archiveFilename);
+					size = fileInfo.Length;
+				}
+
 				TimeSpan took = DateTime.Now - startTime;
-				Console.WriteLine("...done");
+				if (took.TotalSeconds < 1)
+					took = TimeSpan.FromSeconds(1);
 
 				decimal kbPerSecond = (size / (decimal)took.TotalSeconds) / 1024.0M;
 				Console.WriteLine($"Download rate: {Math.Round(took.TotalSeconds, 3)}s = {Math.Round(kbPerSecond, 3)} KiB/s");
 				if (size != expectedSize)
-					Console.WriteLine($"!!! Unexpected downloaded file size expect:{expectedSize} actual:{size}");
+					Console.WriteLine($"!!! Unexpected file size expect:{expectedSize} actual:{size}");
 
 				DateTime when = DateTime.Now;
 
-				Globals.WorkerTaskReport.Tables["Download"].Rows.Add(when, info[0], info[1], info[2], url, expectedSize, (long)took.TotalSeconds);
+				Globals.WorkerTaskReport.Tables["Download"].Rows.Add(when, info[0], info[1], info[2], urlOrFilename, expectedSize, (long)took.TotalSeconds);
 
 				Console.Write($"Extracting {archiveFilename} ...");
 				ZipFile.ExtractToDirectory(archiveFilename, extractDirectory);
@@ -395,57 +555,6 @@ namespace mame_ao.source
 					Globals.WorkerTaskReport.Tables["Import"].Rows.Add(when, info[0], info[1], info[2], sha1, required, imported, subPathName);
 				}
 			}
-		}
-
-		private static async Task<bool> DownloadImportDiskAsync(ArchiveOrgItem item, ArchiveOrgFile file, string expectedSha1, string[] info)
-		{
-			if (Globals.BadSources.AlreadyDownloaded(file) == true)
-			{
-				Console.WriteLine($"!!! Already Downloaded before and it didn't work (bad in source) chd-sha1:{expectedSha1} source-sha1: {file.sha1}");
-				return false;
-			}
-
-			string tempFilename = Path.Combine(Globals.TempDirectory, DateTime.Now.ToString("s").Replace(":", "-") + "_" + Tools.ValidFileName(file.name) + ".chd");
-
-			lock (Globals.WorkerTaskInfo)
-			{
-				Globals.WorkerTaskInfo.BytesTotal = file.size;
-			}
-
-			string url = item.DownloadLink(file);
-			Console.Write($"Downloading {file.name} size:{Tools.DataSize(file.size)} url:{url} ...");
-			DateTime startTime = DateTime.Now;
-			long size = await Tools.Download(url, tempFilename, file.size);
-			TimeSpan took = DateTime.Now - startTime;
-			Console.WriteLine("...done");
-
-			DateTime when = DateTime.Now;
-
-			Globals.WorkerTaskReport.Tables["Download"].Rows.Add(when, info[0], info[1], info[2], url, size, (long)took.TotalSeconds);
-
-			decimal mbPerSecond = (size / (decimal)took.TotalSeconds) / (1024.0M * 1024.0M);
-			Console.WriteLine($"Download rate: {Math.Round(took.TotalSeconds, 3)}s = {Math.Round(mbPerSecond, 3)} MiB/s");
-
-			if (file.size != size)
-				Console.WriteLine($"!!! Unexpected downloaded file size expect:{file.size} actual:{size}");
-
-			string sha1 = Globals.DiskHashStore.Hash(tempFilename);
-
-			if (sha1 != expectedSha1)
-			{
-				Console.WriteLine($"!!! Unexpected downloaded CHD SHA1. It's wrong in the source and will not work. expect:{expectedSha1} actual:{sha1}");
-				Globals.BadSources.ReportSourceFile(file, expectedSha1, sha1);
-			}
-
-			bool required = Globals.Database._AllSHA1s.Contains(sha1);
-			bool imported = false;
-
-			if (required == true)
-				imported = Globals.DiskHashStore.Add(tempFilename, true, sha1);
-
-			Globals.WorkerTaskReport.Tables["Import"].Rows.Add(when, info[0], info[1], info[2], sha1, required, imported, Path.GetFileName(tempFilename));
-
-			return true;
 		}
 
 		public static int PlaceAssetFiles(DataRow[] assetRows, HashStore hashStore, string targetDirectory, string filenameAppend, string[] info)

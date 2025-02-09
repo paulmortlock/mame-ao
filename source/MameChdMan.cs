@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
 using System.Text;
+using System.IO;
+using System.Diagnostics;
 
-namespace mame_ao.source
+namespace Spludlow.MameAO
 {
 	public class MameChdMan
 	{
@@ -27,7 +27,10 @@ namespace mame_ao.source
 				sha1 = info["SHA1"];
 
 			if (sha1.Length != 40)
-				throw new ApplicationException($"MameChdMan, hash not found in output: {filename}");
+				throw new ApplicationException($"CHD Info SHA1 not found in output: {filename}");
+
+			if (Verify(filename) == false)
+				throw new ApplicationException($"CHD Verify SHA1 bad file: {filename}");
 
 			return sha1;
 		}

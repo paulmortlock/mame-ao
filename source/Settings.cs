@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 
-namespace mame_ao.source
+namespace Spludlow.MameAO
 {
 	public class Settings
 	{

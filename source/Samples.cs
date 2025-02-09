@@ -5,7 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Xml.Linq;
 
-namespace mame_ao.source
+namespace Spludlow.MameAO
 {
 	public class Samples
 	{
